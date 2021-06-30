@@ -24,21 +24,18 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-    "strings"
 	"sync"
 
-	"github.com/elazarl/goproxy"
 	"github.com/evankanderson/periscope/pkg/periscope"
 	"google.golang.org/grpc"
 )
 
 type LocalProxy struct {
 	periscope.UnimplementedPeriscopeServer
-	proxy  *goproxy.ProxyHttpServer
-	stream periscope.Periscope_OutServer
+	httpServer *http.Server
+	stream     periscope.Periscope_OutServer
 
-	proxyAddr string
-	grpcAddr  string
+	grpcAddr string
 
 	// This contains the set of outstanding locally-proxied requests awaiting
 	// responses over the (singular) grpc stream.
@@ -49,14 +46,15 @@ type LocalProxy struct {
 func NewLocalProxy(httpPort int, grpcPort int) (*LocalProxy, error) {
 
 	ret := LocalProxy{
-		proxy:     goproxy.NewProxyHttpServer(),
-		proxyAddr: fmt.Sprintf(":%d", httpPort),
-		grpcAddr:  fmt.Sprintf(":%d", grpcPort),
+		httpServer: &http.Server{
+			Addr: fmt.Sprintf(":%d", httpPort),
+		},
+		grpcAddr: fmt.Sprintf(":%d", grpcPort),
 
 		awaiting: make(map[int64]chan *periscope.ProxyResponse),
 		lock:     sync.Mutex{},
 	}
-	ret.proxy.OnRequest().DoFunc(ret.forwardToRemote)
+	ret.httpServer.Handler = &ret
 	return &ret, nil
 }
 
@@ -69,7 +67,7 @@ func (s *LocalProxy) Start() error {
 	periscope.RegisterPeriscopeServer(grpc, s)
 	go grpc.Serve(lis)
 	defer grpc.Stop()
-	if err := http.ListenAndServe(s.proxyAddr, s.proxy); err != nil {
+	if err := s.httpServer.ListenAndServe(); err != nil {
 		return err
 	}
 	return nil
@@ -123,17 +121,12 @@ func (s *LocalProxy) proxyRequest(in *periscope.ProxyRequest, stream periscope.P
 	return
 }
 
-func (s *LocalProxy) forwardToRemote(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
-	localError := func(message string, err error) (*http.Request, *http.Response) {
-		return r, &http.Response{
-			StatusCode: 500,
-			Status:     "500 " + message,
-            Body: io.NopCloser(strings.NewReader(err.Error())),
-		}
-	}
+func (s *LocalProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	send, err := periscope.HttpToReq(*r)
 	if err != nil {
-		return localError("Failed encode", err)
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+		return
 	}
 	send.Id = rand.Int63()
 	c := make(chan (*periscope.ProxyResponse), 1)
@@ -149,10 +142,9 @@ func (s *LocalProxy) forwardToRemote(r *http.Request, ctx *goproxy.ProxyCtx) (*h
 
 	out := <-c
 
-	resp, err := periscope.RespToHttp(out)
-	if err != nil {
-		return localError("Failed decode", err)
+	for k, v := range out.Headers {
+		w.Header().Set(k, v)
 	}
-
-	return r, resp
+	w.WriteHeader(int(out.Status))
+	w.Write(out.Body)
 }

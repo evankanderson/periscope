@@ -1,3 +1,6 @@
+# Note: this is published via:
+#   ko resolve -f config/remote-pod.yaml > pkg/remote/pod-config.yaml
+# And then embedded with `go embed` into the binary
 apiVersion: v1
 kind: Pod
 metadata:

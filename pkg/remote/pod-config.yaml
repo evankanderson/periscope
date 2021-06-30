@@ -1,3 +1,6 @@
+# Note: this is published via:
+#   ko resolve -f config/remote-pod.yaml > pkg/remote/pod-config.yaml
+# And then embedded with `go embed` into the binary
 apiVersion: v1
 kind: Pod
 metadata:
@@ -7,7 +10,7 @@ metadata:
 spec:
   containers:
     - name: proxy
-      image: gcr.io/evana-knative/utils/inner-a2282cd1f8eaa1909dbc177aa9f38104@sha256:52d7e3f9237f80e83a270ab5403f8ad20c9fa7635f0390a037c7da51e437968e
+      image: gcr.io/evana-knative/utils/inner-a2282cd1f8eaa1909dbc177aa9f38104@sha256:a63a160e54b749418868f027e0d9a2a3f2eccc65b1139f4045c34e09c894aff6
       resources:
         limits:
           memory: "128Mi"
@@ -22,7 +25,7 @@ spec:
           name: local-proxy
         - containerPort: 5000
           name: grpc
-  terminationGracePeriodSeconds: 30
+  terminationGracePeriodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
