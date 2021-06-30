@@ -59,7 +59,7 @@ func forward(client periscope.PeriscopeClient) func(*http.Request, *goproxy.Prox
 			return r, &http.Response{
 				StatusCode: 500,
 				Status:     "500 " + message,
-				Body: io.NopCloser(strings.NewReader(err.Error())),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}
 		}
 
@@ -129,6 +129,7 @@ func localRequest(in *periscope.ProxyRequest, client http.Client, stream perisco
 		errorResponse("Failed encode", err)
 		return
 	}
+	req.URL.Scheme = "http"
 	log.Printf("LOCAL: %s", req.URL)
 
 	resp, err := client.Do(req)
