@@ -19,9 +19,11 @@ package localproxy
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/elazarl/goproxy"
 	"github.com/evankanderson/periscope/pkg/periscope"
@@ -37,7 +39,7 @@ func StartLocalProxy(port int, localTarget string, server string) error {
 	client := periscope.NewPeriscopeClient(conn)
 
 	proxy := goproxy.NewProxyHttpServer()
-	proxy.Verbose = true
+	// proxy.Verbose = true
 	proxy.OnRequest().DoFunc(forward(client))
 	listenAddr := fmt.Sprintf("localhost:%d", port)
 	log.Printf("Listening on %q, forwarding to %q. Incoming will connect to %q", listenAddr, server, localTarget)
@@ -56,7 +58,8 @@ func forward(client periscope.PeriscopeClient) func(*http.Request, *goproxy.Prox
 		localError := func(message string, err error) (*http.Request, *http.Response) {
 			return r, &http.Response{
 				StatusCode: 500,
-				Status:     fmt.Sprintf("%s: %s", message, err),
+				Status:     "500 " + message,
+				Body: io.NopCloser(strings.NewReader(err.Error())),
 			}
 		}
 

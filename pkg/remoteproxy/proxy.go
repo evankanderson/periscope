@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+    "strings"
 	"sync"
 
 	"github.com/elazarl/goproxy"
@@ -126,7 +127,8 @@ func (s *LocalProxy) forwardToRemote(r *http.Request, ctx *goproxy.ProxyCtx) (*h
 	localError := func(message string, err error) (*http.Request, *http.Response) {
 		return r, &http.Response{
 			StatusCode: 500,
-			Status:     fmt.Sprintf("%s: %s", message, err),
+			Status:     "500 " + message,
+            Body: io.NopCloser(strings.NewReader(err.Error())),
 		}
 	}
 	send, err := periscope.HttpToReq(*r)
