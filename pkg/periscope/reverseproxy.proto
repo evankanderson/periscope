@@ -1,0 +1,76 @@
+/*
+Copyright © 2021 Evan Anderson <Evan.K.Anderson@gmail.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+syntax = "proto3";
+
+option go_package = "github.com/evankanderson/periscope/pkg/periscope";
+
+package periscope;
+
+message ProxyRequest {
+    // Used by Out to correlate requests and responses.
+    // Does not need to be set for In().
+    int64 id = 1;
+
+    // The next two items correspond to the Request-Line in RFC7230
+    // The HTTP verb (method) of the request.
+    string verb = 2;
+    // The request-target part of the HTTP request.
+    string target = 3;
+
+    // Host is extracted out specifically from general headers and/or request_path.
+    string host = 4;
+
+    // The request headers, verbatim, including items like Content-Length
+    // (which may be duplicated by the length of body), and the Host header.
+    map<string, string> headers = 5;
+    // The request body. This assumes that the request body is consumed
+    // as a single read and not streamed over time.
+    bytes body = 6;
+}
+
+message ProxyResponse {
+    // Used by Out to correlate requests and responses.
+    // Does not need to be set for In().
+    int64 id = 1;
+
+    // The next two items correspond to the Status-Line in RFC7230
+    // The HTTP status code for the response.
+    int32 status = 2;
+    // The "reason-phrase" of the HTTP response
+    string reason = 3;
+
+    // The request headers, verbatim, including items like Content-Length
+    // (which may be duplicated by the length of body), and the Host header.
+    map<string, string> headers = 4;
+    // The request body. This assumes that the request body is consumed
+    // as a single read and not streamed over time.
+    bytes body = 5;
+}
+
+service Periscope {
+    // Proxy a request _into_ the cluster.
+    //
+    // Proxies an HTTP request into the cluster.
+    rpc In(ProxyRequest) returns (ProxyResponse) {}
+
+    // Proxy a request _out_ of the cluster.
+    //
+    // This works by having the outside proxy connect to the inner proxy,
+    // and then sending one ProxyResponse for each ProxyRequest streamed
+    // out from the cluster.
+    rpc Out(stream ProxyResponse) returns (stream ProxyRequest) {}
+}
