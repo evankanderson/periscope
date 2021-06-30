@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: periscope-remote-proxy
+  labels:
+    app: periscope-remote-proxy
+spec:
+  containers:
+    - name: proxy
+      image: gcr.io/evana-knative/utils/inner-a2282cd1f8eaa1909dbc177aa9f38104@sha256:52d7e3f9237f80e83a270ab5403f8ad20c9fa7635f0390a037c7da51e437968e
+      resources:
+        limits:
+          memory: "128Mi"
+          cpu: "100m"
+      args: # Defaults, but make explicit
+        - "-p"
+        - "8080"
+        - "-s"
+        - "5000"
+      ports:
+        - containerPort: 8080
+          name: local-proxy
+        - containerPort: 5000
+          name: grpc
+  terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: periscope-remote-proxy
+spec:
+  selector:
+    app: periscope-remote-proxy
+  ports:
+    - port: 80
+      targetPort: local-proxy
+
+---

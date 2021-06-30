@@ -16,19 +16,23 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/signal"
 
 	"github.com/evankanderson/periscope/pkg/localproxy"
+	"github.com/evankanderson/periscope/pkg/remote"
 	"github.com/spf13/cobra"
 )
 
 // Flags
 var (
-	cfgFile    string
-	port       *int
-	grpcServer *string
-	target     *string
+	cfgFile      string
+	port         *int
+	grpcServer   *string
+	target       *string
+	clusterSetup *bool
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -44,10 +48,35 @@ and continues running proxying traffic until terminated.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: ensureRemote()
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+		if err := remote.EnsureTools(); err != nil {
+			log.Print(err)
+			os.Exit(2)
+		}
+
+		if *clusterSetup {
+			log.Print("Setting up pod on remote cluster...")
+			if err := remote.EnsureForwarder(); err != nil {
+				log.Print(err)
+				os.Exit(3)
+			}
+		}
+
+		if *target == "" {
+			log.Print("Connecting to pod on cluster to forward...")
+			endpoint, err, done := remote.StartForward(ctx, "periscope-remote-proxy", 5000)
+			if err != nil {
+				log.Print(err)
+				os.Exit(4)
+			}
+			defer done()
+			*grpcServer = endpoint
+		}
+
 		if err := localproxy.StartLocalProxy(*port, *target, *grpcServer); err != nil {
 			log.Printf("Failed to start proxy: %s\n", err)
-			os.Exit(2)
+			os.Exit(1)
 		}
 	},
 }
@@ -70,4 +99,5 @@ func init() {
 	port = RootCmd.Flags().IntP("port", "p", 6080, "Local proxy port to listen on.")
 	target = RootCmd.Flags().StringP("target", "t", "", "If set, local address to proxy requests back to")
 	grpcServer = RootCmd.Flags().StringP("server", "s", "", "Remote periscope to connect to")
+	clusterSetup = RootCmd.Flags().Bool("setup", false, "Set up components on the cluster")
 }
