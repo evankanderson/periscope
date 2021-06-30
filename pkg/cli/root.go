@@ -63,7 +63,7 @@ and continues running proxying traffic until terminated.`,
 			}
 		}
 
-		if *target == "" {
+		if *grpcServer == "" {
 			log.Print("Connecting to pod on cluster to forward...")
 			endpoint, err, done := remote.StartForward(ctx, "periscope-remote-proxy", 5000)
 			if err != nil {
